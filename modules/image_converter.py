@@ -3,6 +3,7 @@ Image conversion module for processing downloaded images
 """
 
 import os
+import re
 from PIL import Image, ImageFile, ImageEnhance, ImageFilter
 
 
@@ -10,6 +11,16 @@ class ImageConverter:
     def __init__(self):
         # Enable loading of truncated images
         ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+    def natural_sort_key(self, filename):
+        """Convert a filename to a list of mixed numbers and strings for natural sorting"""
+        def tryint(s):
+            try:
+                return int(s)
+            except ValueError:
+                return s
+
+        return [tryint(c) for c in re.split('([0-9]+)', filename)]
 
     def convert_to_png(self, directory_path, callback=None):
         """Convert all images in directory to PNG format"""
@@ -110,7 +121,7 @@ class ImageConverter:
     def convert_to_pdf(self, source_folder, output_filename, enhance_color=True, color_factor=1.5, callback=None):
         """Convert PNG images to single PDF"""
         images = []
-        files = sorted([f for f in os.listdir(source_folder) if f.endswith('.png')])
+        files = sorted([f for f in os.listdir(source_folder) if f.endswith('.png')], key=self.natural_sort_key)
         total_files = len(files)
         processed = 0
 
