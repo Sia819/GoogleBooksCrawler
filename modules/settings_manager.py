@@ -53,6 +53,20 @@ class SettingsManager:
             'color_factor': '1.5'
         }
 
+        # Window settings
+        self.config['Window'] = {
+            'gui_width': '900',
+            'gui_height': '700',
+            'gui_x': '100',
+            'gui_y': '100',
+            'gui_after_browser_x': '50',
+            'gui_after_browser_y': '50',
+            'browser_width': '1200',
+            'browser_height': '800',
+            'browser_x': '500',
+            'browser_y': '100'
+        }
+
         self.save_settings()
 
     def save_settings(self):

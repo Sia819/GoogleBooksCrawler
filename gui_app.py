@@ -22,10 +22,16 @@ class GoogleBooksCrawlerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Google Books Crawler GUI")
-        self.root.geometry("900x700")
 
-        # Initialize settings manager
+        # Initialize settings manager first
         self.settings = SettingsManager()
+
+        # Apply initial window settings
+        width = self.settings.get_int('Window', 'gui_width', 900)
+        height = self.settings.get_int('Window', 'gui_height', 700)
+        x = self.settings.get_int('Window', 'gui_x', 100)
+        y = self.settings.get_int('Window', 'gui_y', 100)
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
 
         # Initialize modules
         self.scraper = None
@@ -41,6 +47,7 @@ class GoogleBooksCrawlerGUI:
         self.create_converter_tab()
         self.create_reorder_tab()
         self.create_pdf_tab()
+        self.create_settings_tab()
 
         # Status bar
         self.status_var = tk.StringVar()
@@ -50,6 +57,13 @@ class GoogleBooksCrawlerGUI:
 
         # Check profile status on startup
         self.root.after(100, self.check_profile_status)
+
+        # Start window position tracking
+        self.is_tracking = False
+        self.start_position_tracking()
+
+        # Set up cleanup on window close
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def create_scraper_tab(self):
         """Create the scraper tab"""
@@ -298,6 +312,112 @@ class GoogleBooksCrawlerGUI:
         self.pdf_log = scrolledtext.ScrolledText(log_frame, height=10, wrap=tk.WORD)
         self.pdf_log.pack(fill="both", expand=True)
 
+    def create_settings_tab(self):
+        """Create the settings tab"""
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="Settings")
+
+        # Current Position Display
+        current_frame = ttk.LabelFrame(tab, text="Current Window Positions (Live)", padding="10")
+        current_frame.pack(fill="x", padx=10, pady=5)
+
+        # GUI current position display
+        self.gui_current_label = ttk.Label(current_frame, text="GUI Window: Position (0, 0) Size: 0x0",
+                                          font=("Consolas", 10, "bold"), foreground="blue")
+        self.gui_current_label.grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        ttk.Button(current_frame, text="Apply to GUI Settings",
+                  command=self.apply_current_gui_position).grid(row=0, column=1, padx=5, pady=2)
+
+        # Browser current position display
+        self.browser_current_label = ttk.Label(current_frame, text="Browser: Not initialized",
+                                               font=("Consolas", 10, "bold"), foreground="green")
+        self.browser_current_label.grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        ttk.Button(current_frame, text="Apply to Browser Settings",
+                  command=self.apply_current_browser_position).grid(row=1, column=1, padx=5, pady=2)
+
+        # GUI Window Settings
+        gui_frame = ttk.LabelFrame(tab, text="GUI Window Settings", padding="10")
+        gui_frame.pack(fill="x", padx=10, pady=5)
+
+        # GUI initial position and size
+        ttk.Label(gui_frame, text="Initial Position (x, y):").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        self.gui_x_var = tk.IntVar(value=self.settings.get_int('Window', 'gui_x', 100))
+        self.gui_y_var = tk.IntVar(value=self.settings.get_int('Window', 'gui_y', 100))
+        self.gui_x_var.trace('w', lambda *args: self.settings.set('Window', 'gui_x', self.gui_x_var.get()))
+        self.gui_y_var.trace('w', lambda *args: self.settings.set('Window', 'gui_y', self.gui_y_var.get()))
+
+        ttk.Spinbox(gui_frame, from_=0, to=3000, textvariable=self.gui_x_var, width=10).grid(row=0, column=1, padx=2, pady=2)
+        ttk.Label(gui_frame, text="x").grid(row=0, column=2, padx=2, pady=2)
+        ttk.Spinbox(gui_frame, from_=0, to=2000, textvariable=self.gui_y_var, width=10).grid(row=0, column=3, padx=2, pady=2)
+
+        ttk.Label(gui_frame, text="Initial Size (width, height):").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        self.gui_width_var = tk.IntVar(value=self.settings.get_int('Window', 'gui_width', 900))
+        self.gui_height_var = tk.IntVar(value=self.settings.get_int('Window', 'gui_height', 700))
+        self.gui_width_var.trace('w', lambda *args: self.settings.set('Window', 'gui_width', self.gui_width_var.get()))
+        self.gui_height_var.trace('w', lambda *args: self.settings.set('Window', 'gui_height', self.gui_height_var.get()))
+
+        ttk.Spinbox(gui_frame, from_=600, to=1920, textvariable=self.gui_width_var, width=10, increment=10).grid(row=1, column=1, padx=2, pady=2)
+        ttk.Label(gui_frame, text="x").grid(row=1, column=2, padx=2, pady=2)
+        ttk.Spinbox(gui_frame, from_=400, to=1080, textvariable=self.gui_height_var, width=10, increment=10).grid(row=1, column=3, padx=2, pady=2)
+
+        ttk.Button(gui_frame, text="Apply to Current Window", command=self.apply_gui_settings).grid(row=0, column=4, rowspan=2, padx=10, pady=2)
+
+        # GUI position after browser opens
+        ttk.Label(gui_frame, text="Position After Browser Opens (x, y):").grid(row=2, column=0, sticky="w", padx=5, pady=2)
+        self.gui_after_x_var = tk.IntVar(value=self.settings.get_int('Window', 'gui_after_browser_x', 50))
+        self.gui_after_y_var = tk.IntVar(value=self.settings.get_int('Window', 'gui_after_browser_y', 50))
+        self.gui_after_x_var.trace('w', lambda *args: self.settings.set('Window', 'gui_after_browser_x', self.gui_after_x_var.get()))
+        self.gui_after_y_var.trace('w', lambda *args: self.settings.set('Window', 'gui_after_browser_y', self.gui_after_y_var.get()))
+
+        ttk.Spinbox(gui_frame, from_=0, to=3000, textvariable=self.gui_after_x_var, width=10).grid(row=2, column=1, padx=2, pady=2)
+        ttk.Label(gui_frame, text="x").grid(row=2, column=2, padx=2, pady=2)
+        ttk.Spinbox(gui_frame, from_=0, to=2000, textvariable=self.gui_after_y_var, width=10).grid(row=2, column=3, padx=2, pady=2)
+
+        # Browser Window Settings
+        browser_frame = ttk.LabelFrame(tab, text="Browser Window Settings", padding="10")
+        browser_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(browser_frame, text="Browser Position (x, y):").grid(row=0, column=0, sticky="w", padx=5, pady=2)
+        self.browser_x_var = tk.IntVar(value=self.settings.get_int('Window', 'browser_x', 500))
+        self.browser_y_var = tk.IntVar(value=self.settings.get_int('Window', 'browser_y', 100))
+        self.browser_x_var.trace('w', lambda *args: self.settings.set('Window', 'browser_x', self.browser_x_var.get()))
+        self.browser_y_var.trace('w', lambda *args: self.settings.set('Window', 'browser_y', self.browser_y_var.get()))
+
+        ttk.Spinbox(browser_frame, from_=0, to=3000, textvariable=self.browser_x_var, width=10).grid(row=0, column=1, padx=2, pady=2)
+        ttk.Label(browser_frame, text="x").grid(row=0, column=2, padx=2, pady=2)
+        ttk.Spinbox(browser_frame, from_=0, to=2000, textvariable=self.browser_y_var, width=10).grid(row=0, column=3, padx=2, pady=2)
+
+        ttk.Label(browser_frame, text="Browser Size (width, height):").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        self.browser_width_var = tk.IntVar(value=self.settings.get_int('Window', 'browser_width', 1200))
+        self.browser_height_var = tk.IntVar(value=self.settings.get_int('Window', 'browser_height', 800))
+        self.browser_width_var.trace('w', lambda *args: self.settings.set('Window', 'browser_width', self.browser_width_var.get()))
+        self.browser_height_var.trace('w', lambda *args: self.settings.set('Window', 'browser_height', self.browser_height_var.get()))
+
+        ttk.Spinbox(browser_frame, from_=800, to=1920, textvariable=self.browser_width_var, width=10, increment=10).grid(row=1, column=1, padx=2, pady=2)
+        ttk.Label(browser_frame, text="x").grid(row=1, column=2, padx=2, pady=2)
+        ttk.Spinbox(browser_frame, from_=600, to=1080, textvariable=self.browser_height_var, width=10, increment=10).grid(row=1, column=3, padx=2, pady=2)
+
+        # Preset buttons
+        preset_frame = ttk.LabelFrame(tab, text="Window Presets", padding="10")
+        preset_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Button(preset_frame, text="Side by Side", command=self.preset_side_by_side).pack(side="left", padx=5)
+        ttk.Button(preset_frame, text="Top and Bottom", command=self.preset_top_bottom).pack(side="left", padx=5)
+        ttk.Button(preset_frame, text="Default", command=self.preset_default).pack(side="left", padx=5)
+        ttk.Button(preset_frame, text="Get Current Positions", command=self.get_current_positions).pack(side="left", padx=5)
+
+        # Info
+        info_frame = ttk.LabelFrame(tab, text="Information", padding="10")
+        info_frame.pack(fill="x", padx=10, pady=5)
+
+        info_text = """Window position and size settings:
+- GUI Initial: Position and size when the application starts
+- GUI After Browser: GUI window moves here after browser opens
+- Browser Settings: Applied when Initialize Driver is clicked
+- Use presets for common layouts or get current positions"""
+
+        ttk.Label(info_frame, text=info_text, justify="left", wraplength=600).pack(padx=5, pady=5)
+
     # Scraper methods
     def init_driver(self):
         """Initialize Chrome driver"""
@@ -311,10 +431,28 @@ class GoogleBooksCrawlerGUI:
 
         self.scraper = GoogleBooksScraper(self.download_path_var.get(), use_profile=use_profile)
 
-        if self.scraper.init_driver(use_existing_profile=use_profile):
+        # Get browser window settings
+        browser_width = self.settings.get_int('Window', 'browser_width', 1200)
+        browser_height = self.settings.get_int('Window', 'browser_height', 800)
+        browser_x = self.settings.get_int('Window', 'browser_x', 500)
+        browser_y = self.settings.get_int('Window', 'browser_y', 100)
+
+        if self.scraper.init_driver(
+            use_existing_profile=use_profile,
+            window_size=(browser_width, browser_height),
+            window_position=(browser_x, browser_y)
+        ):
             self.log_message(self.scraper_log, "Driver initialized successfully")
+            self.log_message(self.scraper_log, f"Browser positioned at ({browser_x}, {browser_y}) with size {browser_width}x{browser_height}")
             if use_profile:
                 self.log_message(self.scraper_log, "Profile loaded - previous login sessions should be preserved")
+
+            # Move GUI window to "after browser" position
+            gui_after_x = self.settings.get_int('Window', 'gui_after_browser_x', 50)
+            gui_after_y = self.settings.get_int('Window', 'gui_after_browser_y', 50)
+            self.root.geometry(f"+{gui_after_x}+{gui_after_y}")
+            self.log_message(self.scraper_log, f"GUI moved to ({gui_after_x}, {gui_after_y})")
+
             self.navigate_btn.config(state="normal")
             self.init_driver_btn.config(state="disabled")
         else:
@@ -614,6 +752,206 @@ class GoogleBooksCrawlerGUI:
         thread.daemon = True
         thread.start()
 
+    # Settings tab methods
+    def apply_gui_settings(self):
+        """Apply current GUI settings to window"""
+        width = self.gui_width_var.get()
+        height = self.gui_height_var.get()
+        x = self.gui_x_var.get()
+        y = self.gui_y_var.get()
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
+        self.log_message(self.scraper_log, f"GUI window updated: {width}x{height} at ({x}, {y})")
+
+    def preset_side_by_side(self):
+        """Set side-by-side preset for windows"""
+        # GUI on left
+        self.gui_x_var.set(50)
+        self.gui_y_var.set(100)
+        self.gui_width_var.set(700)
+        self.gui_height_var.set(700)
+        self.gui_after_x_var.set(50)
+        self.gui_after_y_var.set(100)
+
+        # Browser on right
+        self.browser_x_var.set(760)
+        self.browser_y_var.set(100)
+        self.browser_width_var.set(1100)
+        self.browser_height_var.set(700)
+
+        messagebox.showinfo("Preset Applied", "Side by Side layout applied")
+
+    def preset_top_bottom(self):
+        """Set top-bottom preset for windows"""
+        # Browser on top
+        self.browser_x_var.set(100)
+        self.browser_y_var.set(50)
+        self.browser_width_var.set(1400)
+        self.browser_height_var.set(500)
+
+        # GUI on bottom
+        self.gui_x_var.set(100)
+        self.gui_y_var.set(100)
+        self.gui_width_var.set(900)
+        self.gui_height_var.set(600)
+        self.gui_after_x_var.set(100)
+        self.gui_after_y_var.set(560)
+
+        messagebox.showinfo("Preset Applied", "Top and Bottom layout applied")
+
+    def preset_default(self):
+        """Reset to default window settings"""
+        # GUI defaults
+        self.gui_x_var.set(100)
+        self.gui_y_var.set(100)
+        self.gui_width_var.set(900)
+        self.gui_height_var.set(700)
+        self.gui_after_x_var.set(50)
+        self.gui_after_y_var.set(50)
+
+        # Browser defaults
+        self.browser_x_var.set(500)
+        self.browser_y_var.set(100)
+        self.browser_width_var.set(1200)
+        self.browser_height_var.set(800)
+
+        messagebox.showinfo("Preset Applied", "Default layout applied")
+
+    def get_current_positions(self):
+        """Get current window positions and sizes"""
+        # Get GUI window position
+        self.root.update_idletasks()
+        gui_x = self.root.winfo_x()
+        gui_y = self.root.winfo_y()
+        gui_width = self.root.winfo_width()
+        gui_height = self.root.winfo_height()
+
+        self.gui_x_var.set(gui_x)
+        self.gui_y_var.set(gui_y)
+        self.gui_width_var.set(gui_width)
+        self.gui_height_var.set(gui_height)
+
+        # Get browser position if available
+        if self.scraper and self.scraper.driver:
+            try:
+                position = self.scraper.driver.get_window_position()
+                size = self.scraper.driver.get_window_size()
+
+                self.browser_x_var.set(position['x'])
+                self.browser_y_var.set(position['y'])
+                self.browser_width_var.set(size['width'])
+                self.browser_height_var.set(size['height'])
+
+                messagebox.showinfo("Positions Updated",
+                    f"Current positions captured:\n"
+                    f"GUI: {gui_width}x{gui_height} at ({gui_x}, {gui_y})\n"
+                    f"Browser: {size['width']}x{size['height']} at ({position['x']}, {position['y']})")
+            except:
+                messagebox.showinfo("Positions Updated",
+                    f"GUI position captured: {gui_width}x{gui_height} at ({gui_x}, {gui_y})\n"
+                    f"Browser not available")
+        else:
+            messagebox.showinfo("Positions Updated",
+                f"GUI position captured: {gui_width}x{gui_height} at ({gui_x}, {gui_y})\n"
+                f"Browser not initialized")
+
+    def start_position_tracking(self):
+        """Start tracking window positions when Settings tab is active"""
+        # Check if Settings tab is active
+        current_tab = self.notebook.index(self.notebook.select())
+        if current_tab == 4:  # Settings tab is index 4
+            self.is_tracking = True
+            self.update_position_display()
+        else:
+            self.is_tracking = False
+
+        # Schedule next check
+        self.root.after(100, self.start_position_tracking)
+
+    def update_position_display(self):
+        """Update the position display labels"""
+        if not self.is_tracking:
+            return
+
+        try:
+            # Check if labels exist (they're created when Settings tab is first opened)
+            if hasattr(self, 'gui_current_label'):
+                # Update GUI position
+                gui_x = self.root.winfo_x()
+                gui_y = self.root.winfo_y()
+                gui_width = self.root.winfo_width()
+                gui_height = self.root.winfo_height()
+                self.gui_current_label.config(
+                    text=f"GUI Window: Position ({gui_x}, {gui_y}) Size: {gui_width}x{gui_height}"
+                )
+
+                # Update Browser position if available
+                if self.scraper and self.scraper.driver:
+                    try:
+                        position = self.scraper.driver.get_window_position()
+                        size = self.scraper.driver.get_window_size()
+                        self.browser_current_label.config(
+                            text=f"Browser: Position ({position['x']}, {position['y']}) Size: {size['width']}x{size['height']}"
+                        )
+                    except:
+                        self.browser_current_label.config(text="Browser: Unable to get position")
+                else:
+                    self.browser_current_label.config(text="Browser: Not initialized")
+
+        except Exception as e:
+            print(f"Error updating position display: {e}")
+
+    def apply_current_gui_position(self):
+        """Apply current GUI position to settings"""
+        try:
+            gui_x = self.root.winfo_x()
+            gui_y = self.root.winfo_y()
+            gui_width = self.root.winfo_width()
+            gui_height = self.root.winfo_height()
+
+            # Update the setting variables
+            self.gui_x_var.set(gui_x)
+            self.gui_y_var.set(gui_y)
+            self.gui_width_var.set(gui_width)
+            self.gui_height_var.set(gui_height)
+
+            # Also set as "after browser" position if user wants
+            result = messagebox.askyesno("Apply Position",
+                f"GUI position applied:\n"
+                f"Position: ({gui_x}, {gui_y})\n"
+                f"Size: {gui_width}x{gui_height}\n\n"
+                f"Also set this as 'After Browser Opens' position?")
+
+            if result:
+                self.gui_after_x_var.set(gui_x)
+                self.gui_after_y_var.set(gui_y)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to apply GUI position: {e}")
+
+    def apply_current_browser_position(self):
+        """Apply current browser position to settings"""
+        if not self.scraper or not self.scraper.driver:
+            messagebox.showwarning("No Browser", "Browser is not initialized")
+            return
+
+        try:
+            position = self.scraper.driver.get_window_position()
+            size = self.scraper.driver.get_window_size()
+
+            # Update the setting variables
+            self.browser_x_var.set(position['x'])
+            self.browser_y_var.set(position['y'])
+            self.browser_width_var.set(size['width'])
+            self.browser_height_var.set(size['height'])
+
+            messagebox.showinfo("Position Applied",
+                f"Browser position applied:\n"
+                f"Position: ({position['x']}, {position['y']})\n"
+                f"Size: {size['width']}x{size['height']}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to apply browser position: {e}")
+
     # Browse methods
     def browse_download_path(self):
         path = filedialog.askdirectory()
@@ -652,6 +990,33 @@ class GoogleBooksCrawlerGUI:
         text_widget.insert(tk.END, f"[{timestamp}] {message}\n")
         text_widget.see(tk.END)
         self.root.update_idletasks()
+
+    def on_closing(self):
+        """Cleanup when GUI is closed"""
+        # Check if Chrome driver is still open
+        if self.scraper and self.scraper.driver:
+            result = messagebox.askyesnocancel(
+                "Chrome Driver Active",
+                "Chrome browser is still open.\n\n"
+                "Yes: Close browser and exit\n"
+                "No: Keep browser open and exit\n"
+                "Cancel: Don't exit"
+            )
+
+            if result is None:  # Cancel
+                return
+            elif result:  # Yes - close browser
+                try:
+                    print("Closing Chrome driver...")
+                    self.scraper.close()
+                    print("Chrome driver closed successfully")
+                except Exception as e:
+                    print(f"Error closing Chrome driver: {e}")
+            # If No, just proceed to destroy GUI without closing browser
+
+        # Destroy the GUI window
+        print("Closing GUI...")
+        self.root.destroy()
 
 
 def main():

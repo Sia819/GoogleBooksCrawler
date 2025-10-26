@@ -32,7 +32,7 @@ class GoogleBooksScraper:
         if self.use_profile:
             os.makedirs(self.profile_dir, exist_ok=True)
 
-    def init_driver(self, use_existing_profile=True):
+    def init_driver(self, use_existing_profile=True, window_size=None, window_position=None):
         """Initialize Chrome driver with undetected-chromedriver"""
         chrome_options = uc.ChromeOptions()
 
@@ -41,6 +41,15 @@ class GoogleBooksScraper:
             chrome_options.add_argument(f'--user-data-dir={self.profile_dir}')
             chrome_options.add_argument('--profile-directory=Default')
             print(f"Using Chrome profile from: {self.profile_dir}")
+
+        # Set initial window size and position to prevent flashing
+        if window_size:
+            chrome_options.add_argument(f'--window-size={window_size[0]},{window_size[1]}')
+        if window_position:
+            chrome_options.add_argument(f'--window-position={window_position[0]},{window_position[1]}')
+
+        # Start maximized to prevent initial small window
+        # chrome_options.add_argument('--start-maximized')  # Comment out if you want exact size
 
         chrome_options.add_experimental_option("prefs", {
             "profile.default_content_setting_values.popups": 1,
@@ -57,8 +66,21 @@ class GoogleBooksScraper:
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 
+        # Disable restore pages popup
+        chrome_options.add_argument('--disable-session-crashed-bubble')
+        chrome_options.add_argument('--disable-infobars')
+
         try:
             self.driver = uc.Chrome(options=chrome_options)
+
+            # Double-check window position and size after creation
+            # This ensures the exact position even if Chrome ignores initial arguments
+            if window_position and window_size:
+                import time
+                time.sleep(0.5)  # Small delay to ensure window is fully created
+                self.driver.set_window_position(window_position[0], window_position[1])
+                self.driver.set_window_size(window_size[0], window_size[1])
+
             return True
         except Exception as e:
             print(f"Error initializing driver: {e}")
@@ -204,6 +226,30 @@ class GoogleBooksScraper:
     def reset_zoom(self):
         """Reset zoom to 100%"""
         return self.set_zoom(100)
+
+    def set_window_exact_size(self, width, height, x, y):
+        """Set exact window size and position using multiple methods"""
+        if self.driver:
+            try:
+                # Method 1: Use Selenium's built-in methods
+                self.driver.set_window_position(x, y)
+                self.driver.set_window_size(width, height)
+
+                # Method 2: Use JavaScript for additional control
+                # Note: This may not work due to browser security restrictions
+                script = f"""
+                if (window.moveTo && window.resizeTo) {{
+                    window.moveTo({x}, {y});
+                    window.resizeTo({width}, {height});
+                }}
+                """
+                self.driver.execute_script(script)
+
+                return True
+            except Exception as e:
+                print(f"Error setting exact window size: {e}")
+                return False
+        return False
 
     def close(self):
         """Close driver"""
