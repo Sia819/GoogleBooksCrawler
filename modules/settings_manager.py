@@ -26,7 +26,7 @@ class SettingsManager:
         self.config['Scraper'] = {
             'book_url': 'https://play.google.com/books/reader?id=',
             'download_path': os.path.join(os.getcwd(), 'Downloads'),
-            'force_start_number': '-1',
+            'force_start_number': '0',
             'use_profile': 'True',
             'zoom_level': '100'
         }

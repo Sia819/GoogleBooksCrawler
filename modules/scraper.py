@@ -15,9 +15,10 @@ class GoogleBooksScraper:
     def __init__(self, download_path=None, use_profile=True):
         self.driver = None
         self.book_list = []
-        self.force_startnum = -1
+        self.force_startnum = 0
         self.is_running = False
         self.use_profile = use_profile
+        self.current_index = 0  # Track current index for display
 
         if download_path is None:
             self.download_path = os.path.join(os.getcwd(), 'Downloads')
@@ -157,6 +158,7 @@ class GoogleBooksScraper:
                     if src_value and src_value not in self.book_list:
                         self.book_list.append(src_value)
                         last_index = len(self.book_list) - 1 + self.force_startnum
+                        self.current_index = last_index + 1  # Next index to be saved
                         self.download_image(src_value, last_index)
                         new_images.append((src_value, last_index))
                 except:

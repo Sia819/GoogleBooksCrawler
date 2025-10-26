@@ -70,23 +70,23 @@ class GoogleBooksCrawlerGUI:
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="Scraper")
 
-        # Chrome Profile settings
-        profile_frame = ttk.LabelFrame(tab, text="Chrome Profile Settings", padding="10")
-        profile_frame.pack(fill="x", padx=10, pady=5)
+        # Control buttons (moved to top)
+        control_frame = ttk.LabelFrame(tab, text="Browser Control", padding="10")
+        control_frame.pack(fill="x", padx=10, pady=5)
 
-        self.use_profile_var = tk.BooleanVar(value=self.settings.get_bool('Scraper', 'use_profile', True))
-        profile_checkbox = ttk.Checkbutton(
-            profile_frame,
-            text="Use persistent Chrome profile (keeps login sessions)",
-            variable=self.use_profile_var,
-            command=self.on_profile_toggle
-        )
-        profile_checkbox.pack(side="left", padx=5)
+        self.init_driver_btn = ttk.Button(control_frame, text="Initialize Driver", command=self.init_driver)
+        self.init_driver_btn.pack(side="left", padx=5)
 
-        self.profile_status_var = tk.StringVar(value="")
-        ttk.Label(profile_frame, textvariable=self.profile_status_var, foreground="green").pack(side="left", padx=20)
+        self.navigate_btn = ttk.Button(control_frame, text="Navigate to Book", command=self.navigate_to_book, state="disabled")
+        self.navigate_btn.pack(side="left", padx=5)
 
-        ttk.Button(profile_frame, text="Clear Profile", command=self.clear_profile).pack(side="right", padx=5)
+        self.start_scraping_btn = ttk.Button(control_frame, text="Start Scraping", command=self.start_scraping, state="disabled")
+        self.start_scraping_btn.pack(side="left", padx=5)
+
+        self.stop_scraping_btn = ttk.Button(control_frame, text="Stop Scraping", command=self.stop_scraping, state="disabled")
+        self.stop_scraping_btn.pack(side="left", padx=5)
+
+        ttk.Button(control_frame, text="Close Driver", command=self.close_driver).pack(side="left", padx=5)
 
         # URL input
         url_frame = ttk.LabelFrame(tab, text="Book URL", padding="10")
@@ -107,32 +107,29 @@ class GoogleBooksCrawlerGUI:
         ttk.Entry(path_frame, textvariable=self.download_path_var, width=50).pack(side="left", padx=5, fill="x", expand=True)
         ttk.Button(path_frame, text="Browse", command=self.browse_download_path).pack(side="left", padx=5)
 
-        # Start number
-        start_frame = ttk.LabelFrame(tab, text="Start Number", padding="10")
+        # Start number and Next Index
+        start_frame = ttk.LabelFrame(tab, text="Scraping Index", padding="10")
         start_frame.pack(fill="x", padx=10, pady=5)
 
-        ttk.Label(start_frame, text="Force Start Number (-1 for default):").pack(side="left")
-        self.start_num_var = tk.IntVar(value=self.settings.get_int('Scraper', 'force_start_number', -1))
+        # Start number input
+        ttk.Label(start_frame, text="Start Number:").pack(side="left")
+        self.start_num_var = tk.IntVar(value=self.settings.get_int('Scraper', 'force_start_number', 0))
         self.start_num_var.trace('w', lambda *args: self.settings.set('Scraper', 'force_start_number', self.start_num_var.get()))
-        ttk.Spinbox(start_frame, from_=-1, to=9999, textvariable=self.start_num_var, width=10).pack(side="left", padx=5)
+        start_spinbox = ttk.Spinbox(start_frame, from_=0, to=9999, textvariable=self.start_num_var, width=10)
+        start_spinbox.pack(side="left", padx=5)
 
-        # Control buttons
-        control_frame = ttk.Frame(tab)
-        control_frame.pack(fill="x", padx=10, pady=10)
+        # Separator
+        ttk.Label(start_frame, text="  |  ").pack(side="left", padx=10)
 
-        self.init_driver_btn = ttk.Button(control_frame, text="Initialize Driver", command=self.init_driver)
-        self.init_driver_btn.pack(side="left", padx=5)
+        # Next index display (read-only)
+        ttk.Label(start_frame, text="Next Index:").pack(side="left")
+        self.next_index_var = tk.StringVar(value="0")
+        next_index_entry = ttk.Entry(start_frame, textvariable=self.next_index_var, width=10, state="readonly")
+        next_index_entry.pack(side="left", padx=5)
 
-        self.navigate_btn = ttk.Button(control_frame, text="Navigate to Book", command=self.navigate_to_book, state="disabled")
-        self.navigate_btn.pack(side="left", padx=5)
-
-        self.start_scraping_btn = ttk.Button(control_frame, text="Start Scraping", command=self.start_scraping, state="disabled")
-        self.start_scraping_btn.pack(side="left", padx=5)
-
-        self.stop_scraping_btn = ttk.Button(control_frame, text="Stop Scraping", command=self.stop_scraping, state="disabled")
-        self.stop_scraping_btn.pack(side="left", padx=5)
-
-        ttk.Button(control_frame, text="Close Driver", command=self.close_driver).pack(side="left", padx=5)
+        # Apply button to use next index as start number
+        ttk.Button(start_frame, text="Use as Start",
+                  command=lambda: self.start_num_var.set(int(self.next_index_var.get()))).pack(side="left", padx=5)
 
         # Zoom controls
         zoom_frame = ttk.LabelFrame(tab, text="Zoom Control", padding="10")
@@ -317,6 +314,24 @@ class GoogleBooksCrawlerGUI:
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="Settings")
 
+        # Chrome Profile Settings (moved from Scraper tab)
+        profile_frame = ttk.LabelFrame(tab, text="Chrome Profile Settings", padding="10")
+        profile_frame.pack(fill="x", padx=10, pady=5)
+
+        self.use_profile_var = tk.BooleanVar(value=self.settings.get_bool('Scraper', 'use_profile', True))
+        profile_checkbox = ttk.Checkbutton(
+            profile_frame,
+            text="Use persistent Chrome profile (keeps login sessions)",
+            variable=self.use_profile_var,
+            command=self.on_profile_toggle
+        )
+        profile_checkbox.pack(side="left", padx=5)
+
+        self.profile_status_var = tk.StringVar(value="")
+        ttk.Label(profile_frame, textvariable=self.profile_status_var, foreground="green").pack(side="left", padx=20)
+
+        ttk.Button(profile_frame, text="Clear Profile", command=self.clear_profile).pack(side="right", padx=5)
+
         # Current Position Display
         current_frame = ttk.LabelFrame(tab, text="Current Window Positions (Live)", padding="10")
         current_frame.pack(fill="x", padx=10, pady=5)
@@ -454,6 +469,7 @@ class GoogleBooksCrawlerGUI:
             self.log_message(self.scraper_log, f"GUI moved to ({gui_after_x}, {gui_after_y})")
 
             self.navigate_btn.config(state="normal")
+            self.start_scraping_btn.config(state="normal")  # Enable Start Scraping immediately
             self.init_driver_btn.config(state="disabled")
         else:
             self.log_message(self.scraper_log, "Failed to initialize driver")
@@ -477,7 +493,19 @@ class GoogleBooksCrawlerGUI:
         if not self.scraper:
             return
 
+        # If no URL has been navigated to, navigate to the current URL
+        if not self.scraper.driver.current_url or self.scraper.driver.current_url == "data:,":
+            url = self.url_var.get()
+            self.log_message(self.scraper_log, f"Navigating to: {url}")
+            if not self.scraper.navigate_to_book(url):
+                self.log_message(self.scraper_log, "Navigation failed")
+                return
+
         self.scraper.force_startnum = self.start_num_var.get()
+        # Update current index on scraper
+        self.scraper.current_index = self.start_num_var.get()
+        self.next_index_var.set(str(self.scraper.current_index))
+
         self.start_scraping_btn.config(state="disabled")
         self.stop_scraping_btn.config(state="normal")
         self.scraper_progress.start(10)
@@ -485,6 +513,8 @@ class GoogleBooksCrawlerGUI:
         def scrape_callback(new_images):
             for url, index in new_images:
                 self.log_message(self.scraper_log, f"Downloaded: {index}.png")
+                # Update next index display
+                self.root.after(0, lambda: self.next_index_var.set(str(self.scraper.current_index)))
 
         thread = threading.Thread(target=self.scraper.start_scraping, args=(scrape_callback,))
         thread.daemon = True
@@ -499,7 +529,13 @@ class GoogleBooksCrawlerGUI:
             self.scraper_progress.stop()
             self.start_scraping_btn.config(state="normal")
             self.stop_scraping_btn.config(state="disabled")
-            self.log_message(self.scraper_log, "Scraping stopped")
+
+            # Update the start number to the next index for easy resumption
+            if hasattr(self.scraper, 'current_index'):
+                self.start_num_var.set(self.scraper.current_index)
+                self.log_message(self.scraper_log, f"Scraping stopped. Next index: {self.scraper.current_index}")
+            else:
+                self.log_message(self.scraper_log, "Scraping stopped")
 
     def close_driver(self):
         """Close Chrome driver"""
