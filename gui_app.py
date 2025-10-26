@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from modules.scraper import GoogleBooksScraper
 from modules.image_converter import ImageConverter
 from modules.file_reorder import FileReorder
+from modules.settings_manager import SettingsManager
 
 
 class GoogleBooksCrawlerGUI:
@@ -22,6 +23,9 @@ class GoogleBooksCrawlerGUI:
         self.root = root
         self.root.title("Google Books Crawler GUI")
         self.root.geometry("900x700")
+
+        # Initialize settings manager
+        self.settings = SettingsManager()
 
         # Initialize modules
         self.scraper = None
@@ -56,7 +60,7 @@ class GoogleBooksCrawlerGUI:
         profile_frame = ttk.LabelFrame(tab, text="Chrome Profile Settings", padding="10")
         profile_frame.pack(fill="x", padx=10, pady=5)
 
-        self.use_profile_var = tk.BooleanVar(value=True)
+        self.use_profile_var = tk.BooleanVar(value=self.settings.get_bool('Scraper', 'use_profile', True))
         profile_checkbox = ttk.Checkbutton(
             profile_frame,
             text="Use persistent Chrome profile (keeps login sessions)",
@@ -74,7 +78,8 @@ class GoogleBooksCrawlerGUI:
         url_frame = ttk.LabelFrame(tab, text="Book URL", padding="10")
         url_frame.pack(fill="x", padx=10, pady=5)
 
-        self.url_var = tk.StringVar(value="https://play.google.com/books/reader?id=")
+        self.url_var = tk.StringVar(value=self.settings.get('Scraper', 'book_url', 'https://play.google.com/books/reader?id='))
+        self.url_var.trace('w', lambda *args: self.settings.set('Scraper', 'book_url', self.url_var.get()))
         ttk.Label(url_frame, text="URL:").pack(side="left")
         ttk.Entry(url_frame, textvariable=self.url_var, width=70).pack(side="left", padx=5, fill="x", expand=True)
 
@@ -82,7 +87,8 @@ class GoogleBooksCrawlerGUI:
         path_frame = ttk.LabelFrame(tab, text="Download Path", padding="10")
         path_frame.pack(fill="x", padx=10, pady=5)
 
-        self.download_path_var = tk.StringVar(value=os.path.join(os.getcwd(), "Downloads"))
+        self.download_path_var = tk.StringVar(value=self.settings.get('Scraper', 'download_path', os.path.join(os.getcwd(), "Downloads")))
+        self.download_path_var.trace('w', lambda *args: self.settings.set('Scraper', 'download_path', self.download_path_var.get()))
         ttk.Label(path_frame, text="Path:").pack(side="left")
         ttk.Entry(path_frame, textvariable=self.download_path_var, width=50).pack(side="left", padx=5, fill="x", expand=True)
         ttk.Button(path_frame, text="Browse", command=self.browse_download_path).pack(side="left", padx=5)
@@ -92,7 +98,8 @@ class GoogleBooksCrawlerGUI:
         start_frame.pack(fill="x", padx=10, pady=5)
 
         ttk.Label(start_frame, text="Force Start Number (-1 for default):").pack(side="left")
-        self.start_num_var = tk.IntVar(value=-1)
+        self.start_num_var = tk.IntVar(value=self.settings.get_int('Scraper', 'force_start_number', -1))
+        self.start_num_var.trace('w', lambda *args: self.settings.set('Scraper', 'force_start_number', self.start_num_var.get()))
         ttk.Spinbox(start_frame, from_=-1, to=9999, textvariable=self.start_num_var, width=10).pack(side="left", padx=5)
 
         # Control buttons
@@ -122,7 +129,8 @@ class GoogleBooksCrawlerGUI:
         ttk.Button(zoom_frame, text="Zoom In (+)", command=self.zoom_in, width=15).pack(side="left", padx=5)
 
         ttk.Label(zoom_frame, text="Custom Zoom:").pack(side="left", padx=10)
-        self.zoom_level_var = tk.IntVar(value=100)
+        self.zoom_level_var = tk.IntVar(value=self.settings.get_int('Scraper', 'zoom_level', 100))
+        self.zoom_level_var.trace('w', lambda *args: self.settings.set('Scraper', 'zoom_level', self.zoom_level_var.get()))
         zoom_spinbox = ttk.Spinbox(zoom_frame, from_=25, to=300, textvariable=self.zoom_level_var, width=10, increment=10)
         zoom_spinbox.pack(side="left", padx=5)
         ttk.Label(zoom_frame, text="%").pack(side="left")
@@ -151,7 +159,8 @@ class GoogleBooksCrawlerGUI:
         dir_frame = ttk.LabelFrame(tab, text="Directory", padding="10")
         dir_frame.pack(fill="x", padx=10, pady=5)
 
-        self.convert_dir_var = tk.StringVar(value=os.path.join(os.getcwd(), "Downloads"))
+        self.convert_dir_var = tk.StringVar(value=self.settings.get('Converter', 'directory', os.path.join(os.getcwd(), "Downloads")))
+        self.convert_dir_var.trace('w', lambda *args: self.settings.set('Converter', 'directory', self.convert_dir_var.get()))
         ttk.Label(dir_frame, text="Directory:").pack(side="left")
         ttk.Entry(dir_frame, textvariable=self.convert_dir_var, width=50).pack(side="left", padx=5, fill="x", expand=True)
         ttk.Button(dir_frame, text="Browse", command=self.browse_convert_dir).pack(side="left", padx=5)
@@ -167,11 +176,13 @@ class GoogleBooksCrawlerGUI:
         jpeg_frame.pack(fill="x", padx=10, pady=5)
 
         ttk.Label(jpeg_frame, text="Output Directory:").grid(row=0, column=0, sticky="w")
-        self.jpeg_output_var = tk.StringVar()
+        self.jpeg_output_var = tk.StringVar(value=self.settings.get('Converter', 'jpeg_output', ''))
+        self.jpeg_output_var.trace('w', lambda *args: self.settings.set('Converter', 'jpeg_output', self.jpeg_output_var.get()))
         ttk.Entry(jpeg_frame, textvariable=self.jpeg_output_var, width=40).grid(row=0, column=1, padx=5)
         ttk.Button(jpeg_frame, text="Browse", command=self.browse_jpeg_output).grid(row=0, column=2)
 
-        self.apply_sharpness_var = tk.BooleanVar(value=True)
+        self.apply_sharpness_var = tk.BooleanVar(value=self.settings.get_bool('Converter', 'apply_sharpness', True))
+        self.apply_sharpness_var.trace('w', lambda *args: self.settings.set('Converter', 'apply_sharpness', str(self.apply_sharpness_var.get())))
         ttk.Checkbutton(jpeg_frame, text="Apply Sharpness Enhancement", variable=self.apply_sharpness_var).grid(row=1, column=0, columnspan=2, pady=5)
 
         ttk.Button(jpeg_frame, text="Convert to JPEG", command=self.convert_to_jpeg, width=30).grid(row=2, column=0, columnspan=3, pady=5)
@@ -196,7 +207,8 @@ class GoogleBooksCrawlerGUI:
         dir_frame = ttk.LabelFrame(tab, text="Directory", padding="10")
         dir_frame.pack(fill="x", padx=10, pady=5)
 
-        self.reorder_dir_var = tk.StringVar(value=os.path.join(os.getcwd(), "Downloads"))
+        self.reorder_dir_var = tk.StringVar(value=self.settings.get('Reorder', 'directory', os.path.join(os.getcwd(), "Downloads")))
+        self.reorder_dir_var.trace('w', lambda *args: self.settings.set('Reorder', 'directory', self.reorder_dir_var.get()))
         ttk.Label(dir_frame, text="Directory:").pack(side="left")
         ttk.Entry(dir_frame, textvariable=self.reorder_dir_var, width=50).pack(side="left", padx=5, fill="x", expand=True)
         ttk.Button(dir_frame, text="Browse", command=self.browse_reorder_dir).pack(side="left", padx=5)
@@ -206,11 +218,13 @@ class GoogleBooksCrawlerGUI:
         options_frame.pack(fill="x", padx=10, pady=5)
 
         ttk.Label(options_frame, text="File Extension:").grid(row=0, column=0, sticky="w")
-        self.reorder_ext_var = tk.StringVar(value=".png")
+        self.reorder_ext_var = tk.StringVar(value=self.settings.get('Reorder', 'file_extension', '.png'))
+        self.reorder_ext_var.trace('w', lambda *args: self.settings.set('Reorder', 'file_extension', self.reorder_ext_var.get()))
         ttk.Entry(options_frame, textvariable=self.reorder_ext_var, width=10).grid(row=0, column=1, padx=5)
 
         ttk.Label(options_frame, text="Start Number:").grid(row=1, column=0, sticky="w")
-        self.reorder_start_var = tk.IntVar(value=0)
+        self.reorder_start_var = tk.IntVar(value=self.settings.get_int('Reorder', 'start_number', 0))
+        self.reorder_start_var.trace('w', lambda *args: self.settings.set('Reorder', 'start_number', self.reorder_start_var.get()))
         ttk.Spinbox(options_frame, from_=0, to=9999, textvariable=self.reorder_start_var, width=10).grid(row=1, column=1, padx=5)
 
         # Preview and execute
@@ -240,7 +254,8 @@ class GoogleBooksCrawlerGUI:
         source_frame = ttk.LabelFrame(tab, text="Source Directory", padding="10")
         source_frame.pack(fill="x", padx=10, pady=5)
 
-        self.pdf_source_var = tk.StringVar(value=os.path.join(os.getcwd(), "Downloads"))
+        self.pdf_source_var = tk.StringVar(value=self.settings.get('PDF', 'source_directory', os.path.join(os.getcwd(), "Downloads")))
+        self.pdf_source_var.trace('w', lambda *args: self.settings.set('PDF', 'source_directory', self.pdf_source_var.get()))
         ttk.Label(source_frame, text="Directory:").pack(side="left")
         ttk.Entry(source_frame, textvariable=self.pdf_source_var, width=50).pack(side="left", padx=5, fill="x", expand=True)
         ttk.Button(source_frame, text="Browse", command=self.browse_pdf_source).pack(side="left", padx=5)
@@ -249,7 +264,8 @@ class GoogleBooksCrawlerGUI:
         output_frame = ttk.LabelFrame(tab, text="Output PDF", padding="10")
         output_frame.pack(fill="x", padx=10, pady=5)
 
-        self.pdf_output_var = tk.StringVar(value=os.path.join(os.getcwd(), "output.pdf"))
+        self.pdf_output_var = tk.StringVar(value=self.settings.get('PDF', 'output_file', os.path.join(os.getcwd(), "output.pdf")))
+        self.pdf_output_var.trace('w', lambda *args: self.settings.set('PDF', 'output_file', self.pdf_output_var.get()))
         ttk.Label(output_frame, text="Output File:").pack(side="left")
         ttk.Entry(output_frame, textvariable=self.pdf_output_var, width=50).pack(side="left", padx=5, fill="x", expand=True)
         ttk.Button(output_frame, text="Browse", command=self.browse_pdf_output).pack(side="left", padx=5)
@@ -258,11 +274,13 @@ class GoogleBooksCrawlerGUI:
         options_frame = ttk.LabelFrame(tab, text="Options", padding="10")
         options_frame.pack(fill="x", padx=10, pady=5)
 
-        self.enhance_color_var = tk.BooleanVar(value=True)
+        self.enhance_color_var = tk.BooleanVar(value=self.settings.get_bool('PDF', 'enhance_color', True))
+        self.enhance_color_var.trace('w', lambda *args: self.settings.set('PDF', 'enhance_color', str(self.enhance_color_var.get())))
         ttk.Checkbutton(options_frame, text="Enhance Colors", variable=self.enhance_color_var).grid(row=0, column=0, sticky="w")
 
         ttk.Label(options_frame, text="Color Factor:").grid(row=1, column=0, sticky="w")
-        self.color_factor_var = tk.DoubleVar(value=1.5)
+        self.color_factor_var = tk.DoubleVar(value=self.settings.get_float('PDF', 'color_factor', 1.5))
+        self.color_factor_var.trace('w', lambda *args: self.settings.set('PDF', 'color_factor', self.color_factor_var.get()))
         ttk.Scale(options_frame, from_=1.0, to=2.0, variable=self.color_factor_var, orient="horizontal", length=200).grid(row=1, column=1, padx=5)
         ttk.Label(options_frame, textvariable=self.color_factor_var).grid(row=1, column=2)
 
@@ -415,7 +433,9 @@ class GoogleBooksCrawlerGUI:
 
     def on_profile_toggle(self):
         """Handle profile checkbox toggle"""
-        if self.use_profile_var.get():
+        use_profile = self.use_profile_var.get()
+        self.settings.set('Scraper', 'use_profile', str(use_profile))
+        if use_profile:
             self.log_message(self.scraper_log, "Profile will be used for next driver initialization")
         else:
             self.log_message(self.scraper_log, "Profile will NOT be used for next driver initialization")
