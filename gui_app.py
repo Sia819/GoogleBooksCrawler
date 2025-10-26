@@ -44,10 +44,31 @@ class GoogleBooksCrawlerGUI:
         self.status_bar = ttk.Label(root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
+        # Check profile status on startup
+        self.root.after(100, self.check_profile_status)
+
     def create_scraper_tab(self):
         """Create the scraper tab"""
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text="Scraper")
+
+        # Chrome Profile settings
+        profile_frame = ttk.LabelFrame(tab, text="Chrome Profile Settings", padding="10")
+        profile_frame.pack(fill="x", padx=10, pady=5)
+
+        self.use_profile_var = tk.BooleanVar(value=True)
+        profile_checkbox = ttk.Checkbutton(
+            profile_frame,
+            text="Use persistent Chrome profile (keeps login sessions)",
+            variable=self.use_profile_var,
+            command=self.on_profile_toggle
+        )
+        profile_checkbox.pack(side="left", padx=5)
+
+        self.profile_status_var = tk.StringVar(value="")
+        ttk.Label(profile_frame, textvariable=self.profile_status_var, foreground="green").pack(side="left", padx=20)
+
+        ttk.Button(profile_frame, text="Clear Profile", command=self.clear_profile).pack(side="right", padx=5)
 
         # URL input
         url_frame = ttk.LabelFrame(tab, text="Book URL", padding="10")
@@ -91,6 +112,24 @@ class GoogleBooksCrawlerGUI:
         self.stop_scraping_btn.pack(side="left", padx=5)
 
         ttk.Button(control_frame, text="Close Driver", command=self.close_driver).pack(side="left", padx=5)
+
+        # Zoom controls
+        zoom_frame = ttk.LabelFrame(tab, text="Zoom Control", padding="10")
+        zoom_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Button(zoom_frame, text="Zoom Out (-)", command=self.zoom_out, width=15).pack(side="left", padx=5)
+        ttk.Button(zoom_frame, text="Reset (100%)", command=self.reset_zoom, width=15).pack(side="left", padx=5)
+        ttk.Button(zoom_frame, text="Zoom In (+)", command=self.zoom_in, width=15).pack(side="left", padx=5)
+
+        ttk.Label(zoom_frame, text="Custom Zoom:").pack(side="left", padx=10)
+        self.zoom_level_var = tk.IntVar(value=100)
+        zoom_spinbox = ttk.Spinbox(zoom_frame, from_=25, to=300, textvariable=self.zoom_level_var, width=10, increment=10)
+        zoom_spinbox.pack(side="left", padx=5)
+        ttk.Label(zoom_frame, text="%").pack(side="left")
+        ttk.Button(zoom_frame, text="Apply", command=self.apply_zoom, width=10).pack(side="left", padx=5)
+
+        self.zoom_status_var = tk.StringVar(value="Zoom: 100%")
+        ttk.Label(zoom_frame, textvariable=self.zoom_status_var, font=("Arial", 10, "bold")).pack(side="right", padx=10)
 
         # Progress
         self.scraper_progress = ttk.Progressbar(tab, mode='indeterminate')
@@ -244,11 +283,20 @@ class GoogleBooksCrawlerGUI:
     # Scraper methods
     def init_driver(self):
         """Initialize Chrome driver"""
-        self.log_message(self.scraper_log, "Initializing Chrome driver...")
-        self.scraper = GoogleBooksScraper(self.download_path_var.get())
+        self.check_profile_status()
+        use_profile = self.use_profile_var.get()
 
-        if self.scraper.init_driver():
+        if use_profile:
+            self.log_message(self.scraper_log, "Initializing Chrome driver with persistent profile...")
+        else:
+            self.log_message(self.scraper_log, "Initializing Chrome driver without profile...")
+
+        self.scraper = GoogleBooksScraper(self.download_path_var.get(), use_profile=use_profile)
+
+        if self.scraper.init_driver(use_existing_profile=use_profile):
             self.log_message(self.scraper_log, "Driver initialized successfully")
+            if use_profile:
+                self.log_message(self.scraper_log, "Profile loaded - previous login sessions should be preserved")
             self.navigate_btn.config(state="normal")
             self.init_driver_btn.config(state="disabled")
         else:
@@ -307,6 +355,92 @@ class GoogleBooksCrawlerGUI:
             self.start_scraping_btn.config(state="disabled")
             self.stop_scraping_btn.config(state="disabled")
             self.log_message(self.scraper_log, "Driver closed")
+
+    # Zoom methods
+    def zoom_in(self):
+        """Zoom in the browser"""
+        if self.scraper and self.scraper.zoom_in():
+            self.update_zoom_status()
+            self.log_message(self.scraper_log, "Zoomed in")
+        else:
+            self.log_message(self.scraper_log, "Failed to zoom in")
+
+    def zoom_out(self):
+        """Zoom out the browser"""
+        if self.scraper and self.scraper.zoom_out():
+            self.update_zoom_status()
+            self.log_message(self.scraper_log, "Zoomed out")
+        else:
+            self.log_message(self.scraper_log, "Failed to zoom out")
+
+    def reset_zoom(self):
+        """Reset browser zoom to 100%"""
+        if self.scraper and self.scraper.reset_zoom():
+            self.zoom_level_var.set(100)
+            self.zoom_status_var.set("Zoom: 100%")
+            self.log_message(self.scraper_log, "Zoom reset to 100%")
+        else:
+            self.log_message(self.scraper_log, "Failed to reset zoom")
+
+    def apply_zoom(self):
+        """Apply custom zoom level"""
+        zoom_level = self.zoom_level_var.get()
+        if self.scraper and self.scraper.set_zoom(zoom_level):
+            self.zoom_status_var.set(f"Zoom: {zoom_level}%")
+            self.log_message(self.scraper_log, f"Zoom set to {zoom_level}%")
+        else:
+            self.log_message(self.scraper_log, "Failed to set zoom level")
+
+    def update_zoom_status(self):
+        """Update zoom status display"""
+        if self.scraper and self.scraper.driver:
+            try:
+                current = self.scraper.driver.execute_script("return document.body.style.zoom || '100%'")
+                current_value = int(current.replace('%', ''))
+                self.zoom_level_var.set(current_value)
+                self.zoom_status_var.set(f"Zoom: {current_value}%")
+            except:
+                pass
+
+    # Profile management methods
+    def check_profile_status(self):
+        """Check if Chrome profile exists"""
+        profile_dir = os.path.join(os.getcwd(), 'chrome_profile')
+        if os.path.exists(profile_dir) and os.listdir(profile_dir):
+            self.profile_status_var.set("✓ Profile exists")
+            return True
+        else:
+            self.profile_status_var.set("")
+            return False
+
+    def on_profile_toggle(self):
+        """Handle profile checkbox toggle"""
+        if self.use_profile_var.get():
+            self.log_message(self.scraper_log, "Profile will be used for next driver initialization")
+        else:
+            self.log_message(self.scraper_log, "Profile will NOT be used for next driver initialization")
+
+    def clear_profile(self):
+        """Clear Chrome profile data"""
+        if messagebox.askyesno("Clear Profile", "This will delete all saved login sessions and cookies. Are you sure?"):
+            profile_dir = os.path.join(os.getcwd(), 'chrome_profile')
+            if os.path.exists(profile_dir):
+                try:
+                    # Close driver if it's running
+                    if self.scraper:
+                        self.close_driver()
+
+                    # Remove profile directory
+                    import shutil
+                    shutil.rmtree(profile_dir)
+                    self.log_message(self.scraper_log, "Chrome profile cleared successfully")
+                    self.profile_status_var.set("")
+                    messagebox.showinfo("Success", "Chrome profile has been cleared")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to clear profile: {str(e)}")
+                    self.log_message(self.scraper_log, f"Error clearing profile: {e}")
+            else:
+                messagebox.showinfo("Info", "No profile exists to clear")
 
     # Converter methods
     def convert_to_png(self):
