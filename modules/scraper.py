@@ -76,10 +76,16 @@ class GoogleBooksScraper:
             # Double-check window position and size after creation
             # This ensures the exact position even if Chrome ignores initial arguments
             if window_position and window_size:
-                import time
-                time.sleep(0.5)  # Small delay to ensure window is fully created
-                self.driver.set_window_position(window_position[0], window_position[1])
-                self.driver.set_window_size(window_size[0], window_size[1])
+                # Immediately try to set window size without delay
+                try:
+                    self.driver.set_window_position(window_position[0], window_position[1])
+                    self.driver.set_window_size(window_size[0], window_size[1])
+                except:
+                    # If immediate setting fails, use minimal delay
+                    import time
+                    time.sleep(0.1)  # Very short delay only if needed
+                    self.driver.set_window_position(window_position[0], window_position[1])
+                    self.driver.set_window_size(window_size[0], window_size[1])
 
             return True
         except Exception as e:
